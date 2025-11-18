@@ -1,0 +1,6 @@
+flask
+flask-sqlalchemy
+shapely
+pyproj
+pyshp
+gunicorn

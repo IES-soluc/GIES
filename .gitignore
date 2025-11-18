@@ -1,0 +1,47 @@
+# Arquivo .gitignore para o projeto GIES (Flask + GIS)
+
+# --- Python ---
+# Ambientes Virtuais
+venv/
+.venv/
+env/
+/bin/
+/lib/
+/include/
+pip-log.txt
+pip-delete-this-file.txt
+
+# Bytecode e Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribuição/Build
+/dist/
+/build/
+*.egg-info/
+.installed.cfg
+MANIFEST
+
+# --- Banco de Dados e Dados Locais ---
+# O arquivo de banco de dados local (SQLite)
+*.db
+*.sqlite3
+/data/  # Se o volume do Docker for mapeado para uma pasta 'data'
+/instance/ # Pasta padrão do Flask (se estivesse em uso)
+
+# --- IDEs e Editores ---
+.vscode/     # Visual Studio Code
+.idea/       # PyCharm/IntelliJ
+*.swp
+*~
+.DS_Store    # macOS
+Thumbs.db    # Windows
+
+# --- Docker e Gunicorn ---
+*.log
+*.pid
+.dockerignore
+
+# Ignora o conteúdo gerado dentro dos containers:
+# Mantemos o gies.db no .gitignore principal, mas se o Docker criasse logs aqui, ignoraríamos.

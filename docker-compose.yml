@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: gies_app
+    restart: always
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mapeia a pasta atual para dentro do container.
+      # Isso permite que o arquivo 'gies.db' seja salvo no seu computador
+      # e não se perca quando o container desligar.
+      - .:/app
+    environment:
+      - FLASK_ENV=production
