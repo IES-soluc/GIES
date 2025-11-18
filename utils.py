@@ -4,17 +4,16 @@ import io
 import os
 import tempfile
 import zipfile
-import shutil
 import xml.etree.ElementTree as ET
-import shapefile # Requer: pip install pyshp
+import shapefile
 from shapely.geometry import shape
 from shapely.ops import transform
 import pyproj
+from datetime import datetime, timedelta
 
-# --- 1. Funções Auxiliares (Conversão e Projeção) ---
+# --- Funções Auxiliares ---
 
 def decimal_para_dms(valor, eixo):
-    """ Converte Decimal para Graus, Minutos, Segundos """
     is_positive = valor >= 0
     valor_abs = abs(valor)
     graus = int(valor_abs)
@@ -25,7 +24,6 @@ def decimal_para_dms(valor, eixo):
     return f"{graus}° {minutos}' {segundos:.4f}\" {direcao}"
 
 def obter_projecao_utm(lon, lat):
-    """ Retorna Transformer e Zona UTM """
     zona_numero = int((lon + 180) / 6) + 1
     base_epsg = 32700 if lat < 0 else 32600
     epsg_final = base_epsg + zona_numero
@@ -34,7 +32,6 @@ def obter_projecao_utm(lon, lat):
     return pyproj.Transformer.from_crs(crs_wgs84, crs_utm, always_xy=True), zona_numero, ("S" if lat < 0 else "N")
 
 def processar_geometria(geojson_dict):
-    """ Calcula Área (ha) e Comprimento (km) """
     try:
         tipo = geojson_dict['type']
         geom = shape(geojson_dict)
@@ -47,16 +44,16 @@ def processar_geometria(geojson_dict):
         comprimento = 0.0
         
         if tipo == 'Polygon':
-            area = projected_geom.area / 10000.0 # ha
-            comprimento = projected_geom.length / 1000.0 # km
+            area = projected_geom.area / 10000.0
+            comprimento = projected_geom.length / 1000.0
         elif tipo == 'LineString':
-            comprimento = projected_geom.length / 1000.0 # km
+            comprimento = projected_geom.length / 1000.0
             
         return round(area, 4), round(comprimento, 4), tipo
     except Exception as e:
         return 0.0, 0.0, 'Unknown'
 
-# --- 2. Exportação (CSV, KML, SHP) ---
+# --- Exportação ---
 
 def gerar_csv_gleba(gleba):
     data = json.loads(gleba.geojson)
@@ -93,12 +90,9 @@ def gerar_kml_gleba(gleba):
     def fmt(c): return f"{c[0]},{c[1]},0"
     
     kml_body = ""
-    if tipo == 'Point':
-        kml_body = f"<Point><coordinates>{fmt(coords)}</coordinates></Point>"
-    elif tipo == 'LineString':
-        kml_body = f"<LineString><coordinates>{' '.join([fmt(c) for c in coords])}</coordinates></LineString>"
-    elif tipo == 'Polygon':
-        kml_body = f"<Polygon><outerBoundaryIs><LinearRing><coordinates>{' '.join([fmt(c) for c in coords[0]])}</coordinates></LinearRing></outerBoundaryIs></Polygon>"
+    if tipo == 'Point': kml_body = f"<Point><coordinates>{fmt(coords)}</coordinates></Point>"
+    elif tipo == 'LineString': kml_body = f"<LineString><coordinates>{' '.join([fmt(c) for c in coords])}</coordinates></LineString>"
+    elif tipo == 'Polygon': kml_body = f"<Polygon><outerBoundaryIs><LinearRing><coordinates>{' '.join([fmt(c) for c in coords[0]])}</coordinates></LinearRing></outerBoundaryIs></Polygon>"
 
     kml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
@@ -108,17 +102,14 @@ def gerar_kml_gleba(gleba):
     {kml_body}
   </Placemark>
 </kml>"""
-    
     output = io.BytesIO()
     output.write(kml_content.encode('utf-8'))
     output.seek(0)
     return output
 
 def gerar_shp_zip(gleba):
-    """ Gera um ZIP contendo SHP, SHX, DBF e PRJ """
     geojson = json.loads(gleba.geojson)
     geom_type = geojson['geometry']['type']
-    
     shp_type = None
     if geom_type == 'Point': shp_type = shapefile.POINT
     elif geom_type == 'LineString': shp_type = shapefile.POLYLINE
@@ -127,33 +118,25 @@ def gerar_shp_zip(gleba):
 
     with tempfile.TemporaryDirectory() as temp_dir:
         base_path = os.path.join(temp_dir, "export")
-        
-        # Cria Shapefile
         w = shapefile.Writer(base_path, shp_type)
         w.field('NOME', 'C', size=100)
         w.field('AREA_HA', 'N', decimal=4)
         w.field('COMP_KM', 'N', decimal=4)
-        
         w.record(gleba.nome, gleba.area_ha or 0, gleba.comprimento_km or 0)
         w.shape(geojson['geometry'])
         w.close()
         
-        # Cria PRJ (WGS84)
         wgs84_wkt = 'GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["Degree",0.017453292519943295]]'
-        with open(base_path + ".prj", "w") as prj:
-            prj.write(wgs84_wkt)
+        with open(base_path + ".prj", "w") as prj: prj.write(wgs84_wkt)
 
-        # Zipa tudo
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
             for ext in [".shp", ".shx", ".dbf", ".prj"]:
-                if os.path.exists(base_path + ext):
-                    zip_file.write(base_path + ext, f"{gleba.nome}{ext}")
-        
+                if os.path.exists(base_path + ext): zip_file.write(base_path + ext, f"{gleba.nome}{ext}")
         zip_buffer.seek(0)
         return zip_buffer
 
-# --- 3. Importação (KML e SHP) ---
+# --- Importação ---
 
 def parse_kml_coordinates(coord_text):
     if not coord_text: return []
@@ -183,29 +166,24 @@ def processar_importacao_kml(file_obj):
         if get_tag_name(elem) == 'Placemark':
             name = "Importada KML"
             geojson = None
-            
             for child in elem.iter():
                 tag = get_tag_name(child)
                 if tag == 'name': name = child.text
-                
                 elif tag == 'Polygon':
                     for sub in child.iter():
                         if get_tag_name(sub) == 'coordinates':
                             coords = parse_kml_coordinates(sub.text)
                             if len(coords) > 2: geojson = {"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [coords]}}
-                            
                 elif tag == 'LineString' and not geojson:
                     for sub in child.iter():
                         if get_tag_name(sub) == 'coordinates':
                             coords = parse_kml_coordinates(sub.text)
                             if len(coords) > 1: geojson = {"type": "Feature", "geometry": {"type": "LineString", "coordinates": coords}}
-                            
                 elif tag == 'Point' and not geojson:
                     for sub in child.iter():
                         if get_tag_name(sub) == 'coordinates':
                             coords = parse_kml_coordinates(sub.text)
                             if len(coords) > 0: geojson = {"type": "Feature", "geometry": {"type": "Point", "coordinates": coords[0]}}
-
             if geojson:
                 geojson['properties'] = {}
                 area, comp, tipo = processar_geometria(geojson['geometry'])
@@ -213,16 +191,12 @@ def processar_importacao_kml(file_obj):
     return glebas
 
 def processar_importacao_shp(file_obj):
-    """ Processa ZIP com Shapefile """
     glebas = []
     with tempfile.TemporaryDirectory() as temp_dir:
         try:
             zip_path = os.path.join(temp_dir, "upload.zip")
             file_obj.save(zip_path)
-            
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                zip_ref.extractall(temp_dir)
-                
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref: zip_ref.extractall(temp_dir)
             shp_file = None
             for root, dirs, files in os.walk(temp_dir):
                 for f in files:
@@ -230,33 +204,30 @@ def processar_importacao_shp(file_obj):
                         shp_file = os.path.join(root, f)
                         break
                 if shp_file: break
-            
             if not shp_file: return []
-                
             reader = shapefile.Reader(shp_file)
             for shape_record in reader.shapeRecords():
                 try:
                     geom_interface = shape_record.shape.__geo_interface__
                     nome = "Importada SHP"
-                    # Tenta achar um campo de nome
                     for record_item in shape_record.record:
                         if isinstance(record_item, str):
                             nome = record_item
                             break
-                    
                     geojson_struct = {"type": "Feature", "properties": {}, "geometry": geom_interface}
                     area, comp, tipo = processar_geometria(geojson_struct['geometry'])
-                    
-                    glebas.append({
-                        "nome": nome,
-                        "geojson": json.dumps(geojson_struct),
-                        "area_ha": area,
-                        "comprimento_km": comp,
-                        "tipo": tipo
-                    })
+                    glebas.append({"nome": nome, "geojson": json.dumps(geojson_struct), "area_ha": area, "comprimento_km": comp, "tipo": tipo})
                 except: continue
-        except Exception as e:
-            print(f"Erro SHP: {e}")
-            return []
-            
+        except: return []
     return glebas
+
+# --- LIMPEZA DO BANCO (NOVA) ---
+def limpar_glebas_antigas(app, db, Gleba_Model, dias=7):
+    """ Apaga registros criados há mais de X dias """
+    with app.app_context():
+        limite = datetime.utcnow() - timedelta(days=dias)
+        # Deleta onde created_at < limite
+        num_deletados = Gleba_Model.query.filter(Gleba_Model.created_at < limite).delete()
+        db.session.commit()
+        if num_deletados > 0:
+            print(f"LIMPEZA: {num_deletados} glebas antigas removidas.")
