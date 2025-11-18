@@ -2,6 +2,11 @@ CHANGELOG - GIES (Geospatial Information Editing System)
 
 Todas as alterações notáveis neste projeto serão documentadas neste arquivo.
 
+## v1.1.1 - [18/11/2025] - Versão Conteinerizada
+
+### Adicionado
+* **Suporte Dispositivos:** Adicionado suporte para dispositivos moveis
+
 ## v1.1.0 - [18/11/2025] - Versão Conteinerizada
 
 ### Adicionado

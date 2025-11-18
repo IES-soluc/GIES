@@ -1,16 +1,50 @@
-version: '3.8'
+# ------------------------
+#  Ancoras
+# ------------------------
+x-restart-policy: &restart_policy
+  restart: unless-stopped
 
+x-healthcheck-base: &healthcheck_base
+  interval: 15s
+  timeout: 5s
+  retries: 5
+  start_period: 60s
+
+# ------------------------
+#  Volumes
+# ------------------------
+
+# ------------------------
+#  Networks
+# ------------------------
+networks:
+  tegridade:
+    name: tegridade
+    external: true
+
+# ------------------------
+#  Services
+# ------------------------
 services:
   web:
     build: .
-    container_name: gies_app
-    restart: always
-    ports:
-      - "5000:5000"
+    container_name: gies
+    <<: *restart_policy
+    #ports:
+    #  - "5000:5000"
     volumes:
       # Mapeia a pasta atual para dentro do container.
       # Isso permite que o arquivo 'gies.db' seja salvo no seu computador
       # e não se perca quando o container desligar.
       - .:/app
+    networks:
+      - tegridade
     environment:
       - FLASK_ENV=production
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=tegridade" 
+      - "traefik.http.routers.gies.rule=Host(`g.ies.net.br`)"
+      - "traefik.http.routers.gies.entrypoints=websecure"
+      - "traefik.http.routers.gies.tls.certresolver=cloudflare"
+      - "traefik.http.services.gies.loadbalancer.server.port=5000"

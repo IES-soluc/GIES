@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     // --- CUSTOMIZAÇÃO DO PONTO (PIN) ---
                     pointToLayer: function (feature, latlng) {
-                        const cor = feature.properties.cor || '#ffc107';
+                        const cor = feature.properties.cor || '#ff7700';
                         
                         // Cria um ícone HTML personalizado (DivIcon)
                         const customIcon = L.divIcon({
@@ -192,7 +192,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('modalTitulo').innerText = "Nova Gleba";
         document.getElementById('inputId').value = "";
         document.getElementById('inputNome').value = "";
-        document.getElementById('inputCor').value = "#ffc107";
+        document.getElementById('inputCor').value = "#ff7700";
         modalGleba.show();
     });
 
