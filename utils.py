@@ -11,7 +11,7 @@ from shapely.ops import transform
 import pyproj
 from datetime import datetime, timedelta
 
-# --- Funções Auxiliares ---
+# --- Funções Auxiliares de Conversão ---
 
 def decimal_para_dms(valor, eixo):
     is_positive = valor >= 0
@@ -39,7 +39,6 @@ def processar_geometria(geojson_dict):
         albers = pyproj.CRS('EPSG:6933')
         project = pyproj.Transformer.from_crs(wgs84, albers, always_xy=True).transform
         projected_geom = transform(project, geom)
-        
         area = 0.0
         comprimento = 0.0
         
@@ -59,7 +58,6 @@ def gerar_csv_gleba(gleba):
     data = json.loads(gleba.geojson)
     tipo = data['geometry']['type']
     coords_raw = data['geometry']['coordinates']
-    
     lista_coords = []
     if tipo == 'Point': lista_coords = [coords_raw]
     elif tipo == 'LineString': lista_coords = coords_raw
@@ -184,6 +182,7 @@ def processar_importacao_kml(file_obj):
                         if get_tag_name(sub) == 'coordinates':
                             coords = parse_kml_coordinates(sub.text)
                             if len(coords) > 0: geojson = {"type": "Feature", "geometry": {"type": "Point", "coordinates": coords[0]}}
+
             if geojson:
                 geojson['properties'] = {}
                 area, comp, tipo = processar_geometria(geojson['geometry'])
@@ -195,7 +194,9 @@ def processar_importacao_shp(file_obj):
     with tempfile.TemporaryDirectory() as temp_dir:
         try:
             zip_path = os.path.join(temp_dir, "upload.zip")
-            file_obj.save(zip_path)
+            # Flask FileStorage object needs to be saved to a path
+            file_obj.save(zip_path) 
+            
             with zipfile.ZipFile(zip_path, 'r') as zip_ref: zip_ref.extractall(temp_dir)
             shp_file = None
             for root, dirs, files in os.walk(temp_dir):
@@ -211,9 +212,7 @@ def processar_importacao_shp(file_obj):
                     geom_interface = shape_record.shape.__geo_interface__
                     nome = "Importada SHP"
                     for record_item in shape_record.record:
-                        if isinstance(record_item, str):
-                            nome = record_item
-                            break
+                        if isinstance(record_item, str): nome = record_item; break
                     geojson_struct = {"type": "Feature", "properties": {}, "geometry": geom_interface}
                     area, comp, tipo = processar_geometria(geojson_struct['geometry'])
                     glebas.append({"nome": nome, "geojson": json.dumps(geojson_struct), "area_ha": area, "comprimento_km": comp, "tipo": tipo})
@@ -221,12 +220,11 @@ def processar_importacao_shp(file_obj):
         except: return []
     return glebas
 
-# --- LIMPEZA DO BANCO (NOVA) ---
+# --- Limpeza de Banco ---
 def limpar_glebas_antigas(app, db, Gleba_Model, dias=7):
     """ Apaga registros criados há mais de X dias """
     with app.app_context():
         limite = datetime.utcnow() - timedelta(days=dias)
-        # Deleta onde created_at < limite
         num_deletados = Gleba_Model.query.filter(Gleba_Model.created_at < limite).delete()
         db.session.commit()
         if num_deletados > 0:

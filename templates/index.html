@@ -57,7 +57,7 @@
                     <div class="mb-3">
                         <label class="form-label">Arquivo (.kml ou .zip com Shapefile)</label>
                         <input type="file" class="form-control" name="file" accept=".kml,.xml,.zip" required>
-                        <div class="form-text">Para Shapefiles, envie o arquivo .zip contendo .shp, .shx e .dbf.</div>
+                        <div class="form-text">Limite: 16MB. Para Shapefiles, envie o .zip contendo .shp, .shx e .dbf.</div>
                     </div>
                     <button type="submit" class="btn btn-primary w-100">Enviar</button>
                 </form>
@@ -82,13 +82,29 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Cor</label>
-                        <input type="color" class="form-control form-control-color w-100" id="inputCor" value="#ffc107">
+                        <input type="color" class="form-control form-control-color w-100" id="inputCor" value="#FF7F00">
                     </div>
                     <div class="d-flex justify-content-end gap-2">
                         <button type="button" class="btn btn-secondary" onclick="cancelarCriacao()">Cancelar</button>
                         <button type="submit" class="btn btn-success">Salvar</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="warningModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title" id="warningModalTitle"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="warningModalContent">
+                </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Entendi</button>
             </div>
         </div>
     </div>

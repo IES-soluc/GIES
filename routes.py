@@ -1,5 +1,6 @@
 import json
 import uuid
+import os
 from flask import Blueprint, render_template, request, jsonify, send_file, make_response, g
 from extensions import db
 from models import Gleba
@@ -10,25 +11,17 @@ main = Blueprint('main', __name__)
 # --- GESTÃO DE SESSÃO (COOKIE) ---
 @main.before_request
 def gerenciar_sessao():
-    # Tenta pegar o ID do cookie
     session_id = request.cookies.get('user_session')
-    
-    # Se não tiver, cria um novo UUID
     if not session_id:
         session_id = str(uuid.uuid4())
-        g.set_new_cookie = True # Flag para avisar a resposta para setar o cookie
+        g.set_new_cookie = True
     else:
         g.set_new_cookie = False
-        
-    # Salva no contexto global para as rotas usarem
     g.user_session = session_id
 
 @main.after_request
 def setar_cookie(response):
-    # Se foi marcado para criar cookie, adiciona na resposta
     if g.get('set_new_cookie'):
-        # Expira em 30 dias (para o usuário não perder logo de cara)
-        # Mas os dados no banco somem em 7 dias pela limpeza
         response.set_cookie('user_session', g.user_session, max_age=60*60*24*30)
     return response
 
@@ -37,6 +30,22 @@ def setar_cookie(response):
 @main.route('/')
 def index():
     return render_template('index.html')
+
+# --- NOVO: Rota para servir a mensagem externa ---
+@main.route('/api/message', methods=['GET'])
+def get_external_message():
+    message_path = os.path.join(main.root_path, 'static', 'data', 'message.json')
+    
+    if os.path.exists(message_path):
+        try:
+            with open(message_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return jsonify(data)
+        except Exception as e:
+            print(f"Erro ao ler message.json: {e}")
+            return jsonify({"active": False}), 500
+    
+    return jsonify({"active": False}), 200
 
 @main.route('/api/glebas', methods=['GET'])
 def get_glebas():
@@ -50,7 +59,7 @@ def get_glebas():
             feature['properties'] = {
                 'id': r.id,
                 'nome': r.nome,
-                'cor': r.cor or '#ffc107',
+                'cor': r.cor or '#FF7F00',
                 'tipo': r.tipo,
                 'area_ha': r.area_ha or 0.0,
                 'comprimento_km': r.comprimento_km or 0.0
@@ -62,8 +71,7 @@ def get_glebas():
 @main.route('/api/glebas', methods=['POST'])
 def add_gleba():
     data = request.json
-    if not data or 'geojson' not in data:
-        return jsonify({"error": "Dados inválidos"}), 400
+    if not data or 'geojson' not in data: return jsonify({"error": "Dados inválidos"}), 400
 
     geom_data = data['geojson']['geometry']
     area, comp, tipo = processar_geometria(geom_data)
@@ -71,11 +79,11 @@ def add_gleba():
     nova_gleba = Gleba(
         nome=data.get('nome', 'Sem Nome'), 
         geojson=json.dumps(data['geojson']),
-        cor=data.get('cor', '#ffc107'),
+        cor=data.get('cor', '#FF7F00'),
         tipo=tipo,
         area_ha=area,
         comprimento_km=comp,
-        session_id=g.user_session # SALVA QUEM CRIOU
+        session_id=g.user_session # SALVA SESSÃO
     )
     db.session.add(nova_gleba)
     db.session.commit()
@@ -83,7 +91,6 @@ def add_gleba():
 
 @main.route('/api/glebas/<int:id>', methods=['PUT'])
 def update_gleba(id):
-    # Garante que só edita se for dono (session_id)
     gleba = Gleba.query.filter_by(id=id, session_id=g.user_session).first_or_404()
     
     data = request.json
@@ -102,13 +109,12 @@ def update_gleba(id):
 
 @main.route('/api/glebas/<int:id>', methods=['DELETE'])
 def delete_gleba(id):
-    # Garante que só deleta se for dono
     gleba = Gleba.query.filter_by(id=id, session_id=g.user_session).first_or_404()
     db.session.delete(gleba)
     db.session.commit()
     return jsonify({"message": "Deletada"})
 
-# --- Exportações (Apenas leitura, mas bom garantir filtro) ---
+# --- Rotas de Exportação e Importação (Permanecem no routes.py, chamando utils) ---
 
 @main.route('/export/csv/<int:id>')
 def export_csv(id):
@@ -132,11 +138,10 @@ def export_shp(id):
         return send_file(output, mimetype="application/zip", as_attachment=True, download_name=f"{gleba.nome}_shp.zip")
     except Exception as e: return str(e), 500
 
-# --- Importação ---
-
 @main.route('/import/universal', methods=['POST'])
 def import_universal():
     if 'file' not in request.files: return jsonify({"error": "Sem arquivo"}), 400
+    
     file = request.files['file']
     filename = file.filename.lower()
     

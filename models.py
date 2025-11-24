@@ -12,11 +12,11 @@ class Gleba(db.Model):
     tipo = db.Column(db.String(20), default='Polygon')
     area_ha = db.Column(db.Float, nullable=True)
     comprimento_km = db.Column(db.Float, nullable=True)
-    cor = db.Column(db.String(7), default='#ffc107')
+    cor = db.Column(db.String(7), default='#FF7F00') # Cor padrão Laranja
     
-    # --- NOVOS CAMPOS PARA SESSÃO ---
-    session_id = db.Column(db.String(36), nullable=False, index=True) # ID do Cookie
-    created_at = db.Column(db.DateTime, default=datetime.utcnow) # Data de criação
+    # Sessão e Limpeza
+    session_id = db.Column(db.String(36), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
         return {
